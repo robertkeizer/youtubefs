@@ -95,7 +95,7 @@ YoutubeFS.prototype.stop = function( cb ){
 };
 
 YoutubeFS.prototype._readdir = function( _path, cb ){
-	if( path === "/" ){
+	if( _path === "/" ){
 		return cb( 0, [ "test" ] );
 	}
 	cb( 0 );
