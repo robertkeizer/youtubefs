@@ -15,27 +15,34 @@ describe( "Main", function( ){
 		} );
 	} );
 
-	it( "Emits a 'starting' event if it gets that far", function( cb ){
+	it( "Emits a 'started' event if it gets that far", function( cb ){
 		const tasks = new Tasks( );
 		tasks.generateValidConfig( function( err, _config ){
 			if( err ){ return cb( err ); }
 			const youtubefs = new YoutubeFS( _config );
-			youtubefs.once( "starting", function( ){
-				youtubefs.stop( cb );
+			youtubefs.once( "started", function( ){
+				setTimeout( function( ){
+					youtubefs.stop( );
+				}, 500 );
+			} );
+			youtubefs.once( "stopped", function( ){
+				cb( );
 			} );
 		} );
 	} );
 
-	it( "Emits a 'stopping' event if we shut it down", function( cb ){
+	it( "Emits a 'stopped' event if we shut it down", function( cb ){
 		const tasks = new Tasks( );
 		tasks.generateValidConfig( function( err, _config ){
 			if( err ){ return cb( err ); }
 			const youtubefs = new YoutubeFS( _config );
-			youtubefs.once( "starting", function( ){
-				youtubefs.stop( function( ){ } ); //noop so that we confirm the event.
+			youtubefs.once( "started", function( ){
+				setTimeout( function( ){
+					youtubefs.stop( function( ){ } ); //noop so that we confirm the event.
+				}, 500 );
 			} );
-			youtubefs.once( "stopping", function( ){
-				return cb( null );
+			youtubefs.once( "stopped", function( ){
+				cb( );
 			} );
 		} );
 	} );

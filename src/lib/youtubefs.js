@@ -1,6 +1,7 @@
 const util = require( "util" );
 const events = require( "events" );
 
+const async = require( "async" );
 const fuse = require( "fuse-bindings" );
 const Joi = require( "joi" );
 
@@ -8,7 +9,9 @@ const Joi = require( "joi" );
 // anything that is emitted by this class.
 const _EVENTS = {
 	STARTING_UP: "starting",
-	STOPPING: "stopping"
+	STARTED: "started",
+	STOPPING: "stopping",
+	STOPPED: "stopped"
 };
 
 const YoutubeFS = function( config, cb ){
@@ -21,6 +24,8 @@ const YoutubeFS = function( config, cb ){
 	if( !cb ){ cb = function(){}; }
 
 	const self = this;
+	this._mounted = false;
+
 	Joi.validate( config, Joi.object( ).keys( {
 		"fuse": Joi.object( ).keys( {
 			mountPath: Joi.string( ).required( )
@@ -53,13 +58,89 @@ YoutubeFS.prototype._handleError = function( err ){
 
 // This is called automatically when we've set the config.
 YoutubeFS.prototype._startup = function( cb ){
+	this._mounted = true;
 	this.emit( _EVENTS.STARTING_UP );
-	return cb( null );
+	const self = this;
+	fuse.mount( this.config.fuse.mountPath, {
+		readdir: this._readdir,
+		getattr: this._getattr,
+		open: this._open,
+		read: this._read
+	}, function( err ){
+		if( err ){ 
+			return this._handleError( err );
+		}
+
+		self.emit( _EVENTS.STARTED );
+	} );
 };
 
 YoutubeFS.prototype.stop = function( cb ){
 	this.emit( _EVENTS.STOPPING );
-	return cb( );
+
+	const self = this;
+	async.waterfall( [ function( cb ){
+		// Sanity check, if we're not mounted don't
+		// try and unmount..
+		if( self._mounted ){
+			return fuse.unmount( self.config.fuse.mountPath, function( err ){
+				return cb( null );
+			} )
+		}
+		return cb( null );
+	} ], function( err ){
+		if( err ){ return cb( err ); }
+		self.emit( _EVENTS.STOPPED );
+	} );
+};
+
+YoutubeFS.prototype._readdir = function( _path, cb ){
+	if( path === "/" ){
+		return cb( 0, [ "test" ] );
+	}
+	cb( 0 );
+};
+
+YoutubeFS.prototype._getattr = function( _path, cb ){
+	if( _path === "/" ){
+		return cb( 0, {
+			mtime: new Date( ),
+			atime: new Date( ),
+			ctime: new Date( ),
+			nlink: 1,
+			size: 100,
+			mode: 16877,
+			uid: process.getuid(),
+			gid: process.getgid()
+		} );
+	}
+
+	if( _path === "/test" ){
+		return cb( 0, {
+			mtime: new Date( ),
+			atime: new Date( ),
+			ctime: new Date( ),
+			nlink: 1,
+			size: 12,
+			mode: 33188,
+			uid: process.getuid(),
+			gid: process.getgid()
+		} );
+	}
+
+	cb( fuse.ENOENT );
+};
+
+YoutubeFS.prototype._open = function( _path, flags, cb ){
+	console.log( "Open " + _path + " with flags of " + flags );
+	cb( 0, 42 );
+};
+
+YoutubeFS.prototype._read = function( _path, fd, buf, len, pos, cb ){
+	const str = "hello world\n".slice( pos, pos + len );
+	if( !str ){ return cb( 0 ); }
+	buf.write( str );
+	return cb( str.length );
 };
 
 util.inherits( YoutubeFS, events.EventEmitter );
